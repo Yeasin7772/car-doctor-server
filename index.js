@@ -12,7 +12,7 @@ const port = process.env.PORT || 5000;
 app.use(
   cors({
     origin: ["http://localhost:5173", "http://localhost:5174"],
-    Credentials: true,
+    credentials: true,
   })
 );
 app.use(express.json());
@@ -30,34 +30,34 @@ const client = new MongoClient(uri, {
 });
 
 // middlewares
-// const logger = async(req, res, next,)=>{
-//   console.log('called:', req.host, req.originalUrl);
-//   next()
-// };
+const logger = async(req, res, next,)=>{
+  console.log('called:', req.host, req.originalUrl);
+  next()
+};
 
 // token verify
 
-// const verifyToken = async (req, res, next) => {
-//   const token = req.cookies?.token
-//   console.log('value of token in middleware', token);
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token
+ // console.log('value of token in middleware', token);
 
-//   if (!token) {
-//     return res.status(401).send({message:'not authorized'})
-//   }
-//   jwt.verify(token,process.env.ACCESS_TOKEN_SECRET, (err, decoded)=> {
-//     // error 
-//     if (err) {
-//      // console.log(err);
-//       return res.status(401).send({message: 'unauthorized'})
-//     }
-//     console.log('value in the token', decoded);
-//     req.user = decoded
-//     next()
+  if (!token) {
+    return res.status(401).send({message:'not authorized'})
+  }
+  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET, (err, decoded)=> {
+    // error 
+    if (err) {
+     // console.log(err);
+      return res.status(401).send({message: 'unauthorized'})
+    }
+    console.log('value in the token', decoded);
+    req.user = decoded
+    next()
 
-//   })
+  })
 
 
-// };
+};
 
 async function run() {
   try {
@@ -109,7 +109,7 @@ async function run() {
 
     // booking
 
-    app.post("/bookings", async (req, res) => {
+    app.post("/bookings",  async (req, res) => {
       const booking = req.body;
       console.log(booking);
       const result = await bookingCollection.insertOne(booking);
@@ -118,7 +118,7 @@ async function run() {
 
     // specive data
 
-    app.get("/bookings", async (req, res) => {
+    app.get("/bookings", verifyToken, async (req, res) => {
       console.log(req.query.email);
       console.log("tok tok token", req.cookies.token);
 
