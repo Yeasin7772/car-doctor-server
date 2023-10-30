@@ -3,6 +3,7 @@ const cors = require("cors");
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const decode = require("jsonwebtoken/decode");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 5000;
@@ -11,7 +12,9 @@ const port = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174"],
+    origin: [
+     // "http://localhost:5173"
+    ],
     credentials: true,
   })
 );
@@ -29,50 +32,44 @@ const client = new MongoClient(uri, {
   },
 });
 
-// middlewares
-const logger = async(req, res, next,)=>{
-  console.log('called:', req.host, req.originalUrl);
-  next()
+// middleware
+const logger = (req, res, next) => {
+  console.log("log: Info", req.method, req.url);
+  next();
 };
 
-// token verify
+// verify token
 
-const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token
- // console.log('value of token in middleware', token);
-
+const verifyToken = (req, res, next) => {
+  const token = req.cookies?.token;
+  console.log("token in middleware", token);
+  // no token
   if (!token) {
-    return res.status(401).send({message:'not authorized'})
+    return res.status(401).send({ message: "unauthorized access" });
   }
-  jwt.verify(token,process.env.ACCESS_TOKEN_SECRET, (err, decoded)=> {
-    // error 
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
     if (err) {
-     // console.log(err);
-      return res.status(401).send({message: 'unauthorized'})
+      return res.status(401).send({ message: "unauthorize access" });
     }
-    console.log('value in the token', decoded);
-    req.user = decoded
+    req.user = decoded;
     next()
-
-  })
-
-
+  });
+  //next();
 };
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const servicesCollection = client.db("cardoctor").collection("services");
     const bookingCollection = client.db("cardoctor").collection("booking");
 
     // auth related api
 
-    app.post("/jwt", async (req, res) => {
+    app.post("/jwt", logger, async (req, res) => {
       const user = req.body;
-      console.log(user);
-
+      console.log("user token", user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
         expiresIn: "1h",
       });
@@ -80,9 +77,19 @@ async function run() {
       res
         .cookie("token", token, {
           httpOnly: true,
-          secure: false,
+          secure: true,
+          sameSite: "none",
         })
+
         .send({ success: true });
+    });
+
+    // after logout
+
+    app.post("/logout", async (req, res) => {
+      const user = req.body;
+      console.log("logging Out ", user);
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
     });
 
     // services related api
@@ -109,7 +116,7 @@ async function run() {
 
     // booking
 
-    app.post("/bookings",  async (req, res) => {
+    app.post("/bookings", async (req, res) => {
       const booking = req.body;
       console.log(booking);
       const result = await bookingCollection.insertOne(booking);
@@ -117,22 +124,22 @@ async function run() {
     });
 
     // specive data
+    // verifyToken,
 
-    app.get("/bookings", verifyToken, async (req, res) => {
+    app.get("/bookings", logger, verifyToken, async (req, res) => {
       console.log(req.query.email);
-      console.log("tok tok token", req.cookies.token);
 
-      // verify token work
-      // console.log('user in the valid token', req.user);
-      // if (req.query.email !== req.user.email) {
-      //   return res.status(403).send({message: 'forbidden access'})
-      // }
+       console.log("token owner info", req.user);
+
+       // token verify 
+       if (req.user.email !== req.query.email) {
+        return res.status(403).send({message: 'forbidden access'})
+       }
 
       let query = {};
       if (req.query?.email) {
         query = { email: req.query.email };
       }
-
       const result = await bookingCollection.find().toArray();
       res.send(result);
     });
